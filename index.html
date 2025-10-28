@@ -1,149 +1,115 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Depot Manifest Manager</title>
+  <title>Steam App Manifest Manager</title>
   <link rel="stylesheet" href="./src/output.css">
 </head>
 <body class="bg-base-200">
   <div id="app" class="min-h-screen">
     <div class="navbar bg-base-100 shadow-lg">
       <div class="flex-1">
-        <a class="btn btn-ghost text-xl">Depot Manifest Manager</a>
+        <a class="btn btn-ghost text-xl">Steam App Manifest Manager</a>
       </div>
       <div class="flex-none gap-2">
-        <button id="btn-scan-depot" class="btn btn-accent btn-sm">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+        <label class="swap swap-rotate">
+          <input id="theme-toggle" type="checkbox" class="theme-controller" />
+          <svg class="swap-off fill-current w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M21.64,13a1,1,0,0,0-1.05-.14,8.05,8.05,0,0,1-3.37.73A8.15,8.15,0,0,1,9.08,5.49a8.59,8.59,0,0,1,.25-2A1,1,0,0,0,8,2.36,10.14,10.14,0,1,0,22,14.05,1,1,0,0,0,21.64,13Zm-9.5,6.69A8.14,8.14,0,0,1,7.08,5.22v.27A10.15,10.15,0,0,0,17.22,15.63a9.79,9.79,0,0,0,2.1-.22A8.11,8.11,0,0,1,12.14,19.73Z"/>
           </svg>
-          Scan Steam
-        </button>
-        <button id="btn-scan" class="btn btn-primary btn-sm">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <svg class="swap-on fill-current w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M5.64,17l-.71.71a1,1,0,0,0,0,1.41,1,1,0,0,0,1.41,0l.71-.71A1,1,0,0,0,5.64,17ZM5,12a1,1,0,0,0-1-1H3a1,1,0,0,0,0,2H4A1,1,0,0,0,5,12Zm7-7a1,1,0,0,0,1-1V3a1,1,0,0,0-2,0V4A1,1,0,0,0,12,5ZM5.64,7.05a1,1,0,0,0,.7.29,1,1,0,0,0,.71-.29,1,1,0,0,0,0-1.41l-.71-.71A1,1,0,0,0,4.93,6.34Zm12,.29a1,1,0,0,0,.7-.29l.71-.71a1,1,0,1,0-1.41-1.41L17,5.64a1,1,0,0,0,0,1.41A1,1,0,0,0,17.66,7.34ZM21,11H20a1,1,0,0,0,0,2h1a1,1,0,0,0,0-2Zm-9,8a1,1,0,0,0-1,1v1a1,1,0,0,0,2,0V20A1,1,0,0,0,12,19ZM18.36,17A1,1,0,0,0,17,18.36l.71.71a1,1,0,0,0,1.41,0,1,1,0,0,0,0-1.41ZM12,6.5A5.5,5.5,0,1,0,17.5,12,5.51,5.51,0,0,0,12,6.5Zm0,9A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z"/>
           </svg>
-          Scan Folder
-        </button>
-        <button id="btn-select-files" class="btn btn-secondary btn-sm">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          Select Files
-        </button>
-        <button id="btn-save" class="btn btn-success btn-sm" disabled>
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-          </svg>
-          Save
-        </button>
+        </label>
       </div>
     </div>
     
     <div class="container mx-auto p-4">
+      <div id="toast-container" class="toast toast-top toast-end z-50"></div>
+      
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div class="lg:col-span-2">
           <div class="card bg-base-100 shadow-xl">
             <div class="card-body">
-              <h2 class="card-title">Configuration</h2>
+              <h2 class="card-title">App Configuration</h2>
               
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="form-control">
                   <label class="label">
-                    <span class="label-text">Default APPID</span>
+                    <span class="label-text">App ID</span>
                   </label>
-                  <input id="input-default-appid" type="text" placeholder="Enter default APPID" class="input input-bordered input-sm" />
+                  <input id="input-appid" type="text" placeholder="Enter Steam App ID" class="input input-bordered" />
                   <label class="label">
-                    <span class="label-text-alt">Used when APPID cannot be inferred</span>
+                    <span class="label-text-alt">The Steam application ID to load</span>
                   </label>
                 </div>
 
                 <div class="form-control">
                   <label class="label">
-                    <span class="label-text">Output Root Folder</span>
+                    <span class="label-text">Output Directory</span>
                   </label>
                   <div class="join w-full">
-                    <input id="input-output-folder" type="text" placeholder="Select output folder" class="input input-bordered input-sm join-item flex-1" readonly />
-                    <button id="btn-select-output" class="btn btn-sm join-item">Browse</button>
+                    <input id="input-output-folder" type="text" placeholder="Select output folder" class="input input-bordered join-item flex-1" readonly />
+                    <button id="btn-select-output" class="btn join-item">Browse</button>
                   </div>
                 </div>
 
                 <div class="form-control">
-                  <label class="label">
-                    <span class="label-text">Dump Mode</span>
-                  </label>
-                  <select id="select-dump-mode" class="select select-bordered select-sm">
-                    <option value="full">Full Dump</option>
-                    <option value="partial">Partial Dump</option>
-                    <option value="minimal">Minimal Dump</option>
-                  </select>
-                </div>
-
-                <div class="form-control">
-                  <label class="label">
-                    <span class="label-text">Filename Pattern</span>
-                  </label>
-                  <input id="input-filename-pattern" type="text" placeholder="{appid}_{depotid}.lua" value="{appid}_{depotid}.lua" class="input input-bordered input-sm" />
-                  <label class="label">
-                    <span class="label-text-alt">Available: {appid}, {depotid}, {manifestid}</span>
+                  <label class="label cursor-pointer">
+                    <span class="label-text">Include DLC Depots</span>
+                    <input id="checkbox-include-dlc" type="checkbox" class="checkbox checkbox-primary" checked />
                   </label>
                 </div>
               </div>
 
               <div class="divider"></div>
 
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="form-control">
-                  <label class="label cursor-pointer">
-                    <span class="label-text">Infer APPID from filename</span>
-                    <input id="checkbox-infer" type="checkbox" class="checkbox checkbox-primary" checked />
-                  </label>
-                </div>
-
-                <div class="form-control">
-                  <label class="label">
-                    <span class="label-text">Output Structure</span>
-                  </label>
-                  <div class="flex gap-4">
-                    <label class="label cursor-pointer gap-2">
-                      <input type="radio" name="structure" value="flat" class="radio radio-sm radio-primary" checked />
-                      <span class="label-text">Flat</span>
-                    </label>
-                    <label class="label cursor-pointer gap-2">
-                      <input type="radio" name="structure" value="nested" class="radio radio-sm radio-primary" />
-                      <span class="label-text">Nested</span>
-                    </label>
-                    <label class="label cursor-pointer gap-2">
-                      <input type="radio" name="structure" value="grouped" class="radio radio-sm radio-primary" />
-                      <span class="label-text">Grouped</span>
-                    </label>
-                  </div>
-                </div>
+              <div class="flex gap-2 flex-wrap">
+                <button id="btn-load-app" class="btn btn-primary">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  Load App Manifest
+                </button>
+                <button id="btn-generate-lua" class="btn btn-success" disabled>
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                  Generate Lua File
+                </button>
+                <button id="btn-copy-manifests" class="btn btn-accent" disabled>
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Copy Manifests
+                </button>
               </div>
             </div>
           </div>
 
           <div class="card bg-base-100 shadow-xl mt-4">
             <div class="card-body">
-              <h2 class="card-title">Files</h2>
+              <div class="flex justify-between items-center">
+                <h2 class="card-title">Depot Information</h2>
+                <div id="app-name-display" class="text-sm opacity-70"></div>
+              </div>
               
               <div class="overflow-x-auto">
-                <table class="table table-xs table-pin-rows">
+                <table class="table table-sm table-pin-rows">
                   <thead>
                     <tr>
                       <th class="w-8">#</th>
-                      <th>File</th>
-                      <th class="w-24">Manifest ID</th>
-                      <th class="w-24">Depot ID</th>
-                      <th class="w-24">APPID</th>
-                      <th class="w-20">Type</th>
-                      <th class="w-28">Status</th>
+                      <th class="w-32">Depot ID</th>
+                      <th class="w-32">Manifest ID</th>
+                      <th class="w-40">Decryption Key</th>
+                      <th class="w-24">Type</th>
                     </tr>
                   </thead>
-                  <tbody id="table-files">
+                  <tbody id="table-depots">
                     <tr>
-                      <td colspan="7" class="text-center text-base-content/50 py-8">
-                        No files loaded. Use "Scan Folder" or "Select Files" to begin.
+                      <td colspan="5" class="text-center text-base-content/50 py-8">
+                        No depots loaded. Enter an App ID and click "Load App Manifest" to begin.
                       </td>
                     </tr>
                   </tbody>
@@ -160,16 +126,20 @@
               <div class="form-control">
                 <div class="mockup-code text-xs h-[600px] overflow-auto">
                   <pre id="preview-content" class="px-4"><code>-- No data to preview
--- Configure settings and load files to see output</code></pre>
+-- Load an app manifest to see the Lua output</code></pre>
                 </div>
               </div>
               <div id="preview-stats" class="stats stats-vertical shadow mt-2">
                 <div class="stat py-2">
-                  <div class="stat-title text-xs">Valid Files</div>
+                  <div class="stat-title text-xs">Depots with Keys</div>
                   <div class="stat-value text-2xl" id="stat-valid">0</div>
                 </div>
                 <div class="stat py-2">
-                  <div class="stat-title text-xs">Total Files</div>
+                  <div class="stat-title text-xs">Missing Keys</div>
+                  <div class="stat-value text-2xl text-warning" id="stat-missing">0</div>
+                </div>
+                <div class="stat py-2">
+                  <div class="stat-title text-xs">Total Depots</div>
                   <div class="stat-value text-2xl" id="stat-total">0</div>
                 </div>
               </div>

@@ -3,6 +3,9 @@ const path = require('path');
 const fs = require('fs').promises;
 const { loadAppData } = require('./src/steam/app-loader');
 const { copyManifests } = require('./src/steam/manifest-copier');
+const { SettingsStore } = require('./src/main/settings-store');
+
+let settingsStore;
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -80,7 +83,16 @@ ipcMain.handle('save:output', async (event, data) => {
   }
 });
 
+ipcMain.handle('settings:load', async () => {
+  return await settingsStore.load();
+});
+
+ipcMain.handle('settings:save', async (event, settings) => {
+  return await settingsStore.save(settings);
+});
+
 app.whenReady().then(() => {
+  settingsStore = new SettingsStore(app);
   createWindow();
 
   app.on('activate', function () {

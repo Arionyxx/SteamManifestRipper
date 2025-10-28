@@ -7,6 +7,59 @@ const state = {
   theme: 'dark'
 };
 
+async function loadSettings() {
+  if (!window.electronAPI) return;
+  
+  try {
+    const result = await window.electronAPI.loadSettings();
+    if (result.success && result.settings) {
+      state.appId = result.settings.appId || '';
+      state.includeDlc = result.settings.includeDlc !== undefined ? result.settings.includeDlc : true;
+      state.outputFolder = result.settings.outputFolder || '';
+      state.theme = result.settings.theme || 'dark';
+      
+      const appIdInput = document.getElementById('input-appid');
+      if (appIdInput) {
+        appIdInput.value = state.appId;
+      }
+      
+      const checkboxIncludeDlc = document.getElementById('checkbox-include-dlc');
+      if (checkboxIncludeDlc) {
+        checkboxIncludeDlc.checked = state.includeDlc;
+      }
+      
+      const outputFolderInput = document.getElementById('input-output-folder');
+      if (outputFolderInput) {
+        outputFolderInput.value = state.outputFolder;
+      }
+      
+      const themeToggle = document.getElementById('theme-toggle');
+      const htmlElement = document.documentElement;
+      if (themeToggle) {
+        themeToggle.checked = state.theme === 'light';
+        htmlElement.setAttribute('data-theme', state.theme);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load settings:', error);
+  }
+}
+
+async function saveSettings() {
+  if (!window.electronAPI) return;
+  
+  try {
+    await window.electronAPI.saveSettings({
+      appId: state.appId,
+      includeDlc: state.includeDlc,
+      outputFolder: state.outputFolder,
+      theme: state.theme
+    });
+  } catch (error) {
+    console.error('Failed to save settings:', error);
+  }
+}
+
 function showToast(message, type = 'info') {
   const toastContainer = document.getElementById('toast-container');
   if (!toastContainer) return;
@@ -290,15 +343,17 @@ async function handleSelectOutput() {
       input.value = result.path;
     }
     showToast(`Output folder selected: ${result.path}`, 'success');
+    await saveSettings();
   }
 }
 
-function handleIncludeDlcChange(event) {
+async function handleIncludeDlcChange(event) {
   state.includeDlc = event.target.checked;
   updatePreview();
+  await saveSettings();
 }
 
-function handleThemeToggle(event) {
+async function handleThemeToggle(event) {
   const htmlElement = document.documentElement;
   const isChecked = event.target.checked;
   
@@ -309,9 +364,10 @@ function handleThemeToggle(event) {
     htmlElement.setAttribute('data-theme', 'dark');
     state.theme = 'dark';
   }
+  await saveSettings();
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const btnLoadApp = document.getElementById('btn-load-app');
   const btnGenerateLua = document.getElementById('btn-generate-lua');
   const btnCopyManifests = document.getElementById('btn-copy-manifests');
@@ -333,7 +389,17 @@ document.addEventListener('DOMContentLoaded', () => {
         handleLoadApp();
       }
     });
+    
+    inputAppId.addEventListener('blur', async () => {
+      const newAppId = inputAppId.value.trim();
+      if (state.appId !== newAppId) {
+        state.appId = newAppId;
+        await saveSettings();
+      }
+    });
   }
+  
+  await loadSettings();
   
   renderTable();
   updatePreview();

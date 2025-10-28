@@ -10,5 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectFolder: () => ipcRenderer.invoke('dialog:selectFolder'),
   loadAppData: (options) => ipcRenderer.invoke('steam:loadAppData', options),
   copyManifests: (options) => ipcRenderer.invoke('steam:copyManifests', options),
-  saveOutput: (data) => ipcRenderer.invoke('save:output', data)
+  saveOutput: (data) => ipcRenderer.invoke('save:output', data),
+  loadSettings: () => ipcRenderer.invoke('settings:load'),
+  saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings)
 });

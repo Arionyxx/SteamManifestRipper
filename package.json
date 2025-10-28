@@ -7,7 +7,7 @@
     "start": "npm run build:tailwind && electron .",
     "build:tailwind": "tailwindcss -i ./src/styles.css -o ./src/output.css",
     "watch:tailwind": "tailwindcss -i ./src/styles.css -o ./src/output.css --watch",
-    "test": "node src/tests/vdf-parser.test.js && node src/tests/config-reader.test.js && node src/tests/app-loader.test.js && node src/tests/registry-reader.test.js && node src/tests/integration.test.js && node src/tests/renderer.test.js"
+    "test": "node src/tests/vdf-parser.test.js && node src/tests/config-reader.test.js && node src/tests/app-loader.test.js && node src/tests/registry-reader.test.js && node src/tests/integration.test.js && node src/tests/renderer.test.js && node src/tests/settings-store.test.js"
   },
   "keywords": [
     "electron",

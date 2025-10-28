@@ -1,20 +1,13 @@
 const fs = require('fs').promises;
 const path = require('path');
-const { discoverLibraryFolders, getDepotCachePath, getSteamAppsPath } = require('./library-discovery');
 const { parseVDFFile, extractDepotIds, extractDLCIds } = require('../parsers/vdf-parser');
+const { parseDepotKeys, resolveSteamRoot } = require('./config-reader');
 
 async function findManifestFiles(depotCachePath) {
   const manifestFiles = [];
-  const errors = [];
   
   try {
     await fs.access(depotCachePath);
-  } catch (error) {
-    errors.push(`Depotcache directory not found: ${depotCachePath}`);
-    return { manifestFiles, errors };
-  }
-  
-  try {
     const files = await fs.readdir(depotCachePath);
     
     for (const file of files) {
@@ -27,10 +20,9 @@ async function findManifestFiles(depotCachePath) {
       }
     }
   } catch (error) {
-    errors.push(`Error reading depotcache directory: ${error.message}`);
   }
   
-  return { manifestFiles, errors };
+  return manifestFiles;
 }
 
 function extractManifestId(filename) {
@@ -57,13 +49,13 @@ function extractDepotId(filename) {
   return '';
 }
 
-async function buildAppDepotMap(libraryPath) {
+async function buildAppDepotMap(steamRoot) {
   const appDepotMap = {};
   const depotAppMap = {};
   const dlcApps = new Set();
   const errors = [];
   
-  const steamappsPath = await getSteamAppsPath(libraryPath);
+  const steamappsPath = path.join(steamRoot, 'steamapps');
   
   try {
     const files = await fs.readdir(steamappsPath);
@@ -160,44 +152,46 @@ function determineRowStatus(row, depotAppMap) {
 async function scanDepotCache(options = {}) {
   const {
     defaultAppId = '',
-    inferAppId = true
+    inferAppId = true,
+    steamPathOverride = null
   } = options;
   
   const result = {
     success: false,
     files: [],
-    libraries: [],
+    steamRoot: null,
     errors: [],
     warnings: []
   };
   
-  const libraryDiscovery = await discoverLibraryFolders();
-  if (!libraryDiscovery.success) {
-    result.errors.push(...libraryDiscovery.errors);
+  const steamRootResult = await resolveSteamRoot(steamPathOverride);
+  if (!steamRootResult.success) {
+    result.errors.push(...steamRootResult.errors);
     return result;
   }
   
-  result.libraries = libraryDiscovery.libraries;
-  result.errors.push(...libraryDiscovery.errors);
+  result.steamRoot = steamRootResult.steamRoot;
+  result.errors.push(...steamRootResult.errors);
   
-  const globalDepotAppMap = {};
-  const globalDlcApps = [];
+  const configVdfPath = path.join(result.steamRoot, 'config', 'config.vdf');
+  const depotKeysResult = await parseDepotKeys(configVdfPath);
+  result.errors.push(...depotKeysResult.errors);
+  const depotKeys = depotKeysResult.depotKeys;
   
-  for (const library of libraryDiscovery.libraries) {
-    const mapResult = await buildAppDepotMap(library);
-    result.errors.push(...mapResult.errors);
-    
-    Object.assign(globalDepotAppMap, mapResult.depotAppMap);
-    globalDlcApps.push(...mapResult.dlcApps);
-  }
+  const mapResult = await buildAppDepotMap(result.steamRoot);
+  result.errors.push(...mapResult.errors);
+  const globalDepotAppMap = mapResult.depotAppMap;
+  const globalDlcApps = mapResult.dlcApps;
   
-  for (const library of libraryDiscovery.libraries) {
-    const depotCachePath = await getDepotCachePath(library);
-    const manifestResult = await findManifestFiles(depotCachePath);
+  const depotCachePaths = [
+    path.join(result.steamRoot, 'depotcache'),
+    path.join(result.steamRoot, 'config', 'depotcache')
+  ];
+  
+  for (const depotCachePath of depotCachePaths) {
+    const manifestFiles = await findManifestFiles(depotCachePath);
     
-    result.errors.push(...manifestResult.errors);
-    
-    for (const manifest of manifestResult.manifestFiles) {
+    for (const manifest of manifestFiles) {
       const manifestId = extractManifestId(manifest.filename);
       const depotId = extractDepotId(manifest.filename);
       
@@ -211,17 +205,24 @@ async function scanDepotCache(options = {}) {
       
       const type = determineRowType(depotId, appId, globalDepotAppMap, globalDlcApps);
       
+      const decryptionKey = depotId && depotKeys[depotId] ? depotKeys[depotId] : '';
+      
       const row = {
         path: manifest.path,
         name: manifest.filename,
         manifestId,
         depotId,
         appId,
+        decryptionKey,
         type,
         status: 'pending',
         errors: [],
-        library
+        location: depotCachePath
       };
+      
+      if (depotId && !decryptionKey) {
+        result.warnings.push(`No decryption key found for depot ${depotId} (manifest: ${manifest.filename})`);
+      }
       
       const statusResult = determineRowStatus(row, globalDepotAppMap);
       row.status = statusResult.status;
@@ -260,10 +261,11 @@ async function parseManifestFile(filePath, options = {}) {
     manifestId,
     depotId,
     appId,
+    decryptionKey: '',
     type: 'unknown',
     status: 'pending',
     errors: [],
-    library: path.dirname(path.dirname(filePath))
+    location: path.dirname(filePath)
   };
   
   const statusResult = determineRowStatus(row, depotAppMap);

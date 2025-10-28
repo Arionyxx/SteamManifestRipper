@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 const { scanDepotCache, parseManifestFile, buildAppDepotMap } = require('./src/steam/depot-scanner');
-const { discoverLibraryFolders } = require('./src/steam/library-discovery');
+const { resolveSteamRoot } = require('./src/steam/config-reader');
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -41,20 +41,19 @@ ipcMain.handle('dialog:selectFiles', async (event, options = {}) => {
   if (!result.canceled && result.filePaths.length > 0) {
     const {
       defaultAppId = '',
-      inferAppId = true
+      inferAppId = true,
+      steamPathOverride = null
     } = options;
     
-    const libraryDiscovery = await discoverLibraryFolders();
+    const steamRootResult = await resolveSteamRoot(steamPathOverride);
     const globalDepotAppMap = {};
     
-    if (libraryDiscovery.success) {
-      for (const library of libraryDiscovery.libraries) {
-        try {
-          const mapResult = await buildAppDepotMap(library);
-          Object.assign(globalDepotAppMap, mapResult.depotAppMap);
-        } catch (error) {
-          console.error(`Error building depot map for ${library}:`, error);
-        }
+    if (steamRootResult.success) {
+      try {
+        const mapResult = await buildAppDepotMap(steamRootResult.steamRoot);
+        Object.assign(globalDepotAppMap, mapResult.depotAppMap);
+      } catch (error) {
+        console.error(`Error building depot map:`, error);
       }
     }
     
@@ -104,7 +103,7 @@ ipcMain.handle('steam:scanDepotcache', async (event, options = {}) => {
     return {
       success: false,
       files: [],
-      libraries: [],
+      steamRoot: null,
       errors: [error.message],
       warnings: []
     };

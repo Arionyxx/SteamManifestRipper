@@ -36,3 +36,8 @@ out/
 
 # Electron
 *.electron
+
+# Test artifacts
+src/tests/fixtures/temp-*.vdf
+src/tests/fixtures/test-steam-root/
+src/tests/fixtures/test-steam-root-nokey/

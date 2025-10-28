@@ -1,17 +1,14 @@
 const { scanDepotCache } = require('../steam/depot-scanner');
-const { discoverLibraryFolders } = require('../steam/library-discovery');
+const { resolveSteamRoot } = require('../steam/config-reader');
 
-async function testLibraryDiscovery() {
-  console.log('Testing library discovery...');
-  const result = await discoverLibraryFolders();
+async function testSteamRootResolution() {
+  console.log('Testing Steam root resolution...');
+  const result = await resolveSteamRoot();
   
   if (result.success) {
-    console.log(`Found ${result.libraries.length} library location(s):`);
-    result.libraries.forEach((lib, i) => {
-      console.log(`  ${i + 1}. ${lib}`);
-    });
+    console.log(`Found Steam installation: ${result.steamRoot}`);
   } else {
-    console.error('Failed to discover libraries');
+    console.error('Failed to find Steam installation');
   }
   
   if (result.errors.length > 0) {
@@ -34,7 +31,7 @@ async function testDepotScanner() {
   
   if (result.success) {
     console.log(`\nScan completed successfully!`);
-    console.log(`Libraries scanned: ${result.libraries.length}`);
+    console.log(`Steam root: ${result.steamRoot}`);
     console.log(`Manifest files found: ${result.files.length}`);
     
     const validFiles = result.files.filter(f => f.status === 'valid');
@@ -58,11 +55,21 @@ async function testDepotScanner() {
       result.files.slice(0, 5).forEach(f => {
         console.log(`  - ${f.name}`);
         console.log(`    Manifest ID: ${f.manifestId}, Depot ID: ${f.depotId}, App ID: ${f.appId}`);
+        console.log(`    Decryption Key: ${f.decryptionKey || 'N/A'}`);
+        console.log(`    Location: ${f.location}`);
         console.log(`    Type: ${f.type}, Status: ${f.status}`);
         if (f.errors.length > 0) {
           console.log(`    Errors: ${f.errors.join(', ')}`);
         }
       });
+    }
+  }
+  
+  if (result.warnings && result.warnings.length > 0) {
+    console.log(`\nWarnings (${result.warnings.length}):`);
+    result.warnings.slice(0, 10).forEach(warn => console.log(`  - ${warn}`));
+    if (result.warnings.length > 10) {
+      console.log(`  ... and ${result.warnings.length - 10} more`);
     }
   } else {
     console.error('Scan failed!');
@@ -81,7 +88,7 @@ async function testDepotScanner() {
 
 async function main() {
   try {
-    await testLibraryDiscovery();
+    await testSteamRootResolution();
     await testDepotScanner();
   } catch (error) {
     console.error('Test failed with error:', error);
@@ -92,4 +99,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { testLibraryDiscovery, testDepotScanner };
+module.exports = { testSteamRootResolution, testDepotScanner };

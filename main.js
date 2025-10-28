@@ -1,6 +1,8 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
+const { scanDepotCache, parseManifestFile, buildAppDepotMap } = require('./src/steam/depot-scanner');
+const { discoverLibraryFolders } = require('./src/steam/library-discovery');
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -27,7 +29,7 @@ ipcMain.handle('dialog:selectFolder', async () => {
   return { success: false };
 });
 
-ipcMain.handle('dialog:selectFiles', async () => {
+ipcMain.handle('dialog:selectFiles', async (event, options = {}) => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile', 'multiSelections'],
     filters: [
@@ -37,15 +39,35 @@ ipcMain.handle('dialog:selectFiles', async () => {
   });
   
   if (!result.canceled && result.filePaths.length > 0) {
-    const files = result.filePaths.map(filePath => ({
-      path: filePath,
-      name: path.basename(filePath),
-      manifestId: '',
-      depotId: '',
-      appId: '',
-      type: path.extname(filePath).substring(1) || 'unknown',
-      status: 'pending'
-    }));
+    const {
+      defaultAppId = '',
+      inferAppId = true
+    } = options;
+    
+    const libraryDiscovery = await discoverLibraryFolders();
+    const globalDepotAppMap = {};
+    
+    if (libraryDiscovery.success) {
+      for (const library of libraryDiscovery.libraries) {
+        try {
+          const mapResult = await buildAppDepotMap(library);
+          Object.assign(globalDepotAppMap, mapResult.depotAppMap);
+        } catch (error) {
+          console.error(`Error building depot map for ${library}:`, error);
+        }
+      }
+    }
+    
+    const files = await Promise.all(
+      result.filePaths.map(filePath => 
+        parseManifestFile(filePath, {
+          defaultAppId,
+          inferAppId,
+          depotAppMap: globalDepotAppMap
+        })
+      )
+    );
+    
     return { success: true, files };
   }
   return { success: false };
@@ -71,6 +93,21 @@ ipcMain.handle('scan:files', async (event, folderPath) => {
     return { success: true, files: fileData };
   } catch (error) {
     return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('steam:scanDepotcache', async (event, options = {}) => {
+  try {
+    const result = await scanDepotCache(options);
+    return result;
+  } catch (error) {
+    return {
+      success: false,
+      files: [],
+      libraries: [],
+      errors: [error.message],
+      warnings: []
+    };
   }
 });
 

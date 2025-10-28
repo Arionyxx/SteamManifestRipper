@@ -3,34 +3,127 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Electron App</title>
+  <title>Lua Depot Output Generator</title>
   <link rel="stylesheet" href="./src/output.css">
 </head>
 <body>
   <div id="app" class="min-h-screen bg-base-200">
     <div class="navbar bg-base-100 shadow-lg">
       <div class="flex-1">
-        <a class="btn btn-ghost text-xl">Electron App</a>
+        <a class="btn btn-ghost text-xl">Lua Depot Output Generator</a>
       </div>
     </div>
     
     <div class="container mx-auto p-8">
-      <div class="hero bg-base-100 rounded-lg shadow-xl">
-        <div class="hero-content text-center">
-          <div class="max-w-md">
-            <h1 class="text-5xl font-bold">Hello, Electron!</h1>
-            <p class="py-6">
-              Welcome to your Electron app with Tailwind CSS and DaisyUI.
-            </p>
-            <div class="card bg-base-200 p-4 mt-4">
-              <h2 class="text-lg font-semibold mb-2">Version Information</h2>
-              <div class="text-sm space-y-1">
-                <p>Node: <span id="node-version" class="font-mono">Loading...</span></p>
-                <p>Chrome: <span id="chrome-version" class="font-mono">Loading...</span></p>
-                <p>Electron: <span id="electron-version" class="font-mono">Loading...</span></p>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="card bg-base-100 shadow-xl">
+          <div class="card-body">
+            <h2 class="card-title">Configuration</h2>
+            
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text">Default APPID</span>
+              </label>
+              <input type="text" id="default-appid" placeholder="e.g., 730" class="input input-bordered w-full" />
+            </div>
+
+            <div class="form-control">
+              <label class="label cursor-pointer">
+                <span class="label-text">Infer APPID from depot data</span>
+                <input type="checkbox" id="infer-appid" class="checkbox" />
+              </label>
+            </div>
+
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text">Dump Mode</span>
+              </label>
+              <select id="dump-mode" class="select select-bordered w-full">
+                <option value="base">Base Only</option>
+                <option value="base-dlc">Base + DLCs</option>
+                <option value="base-dlc-depotcache">Base + DLCs + depotcache</option>
+                <option value="all">All Available</option>
+              </select>
+            </div>
+
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text">Output Structure</span>
+              </label>
+              <select id="output-structure" class="select select-bordered w-full">
+                <option value="flat">Flat (all files in output folder)</option>
+                <option value="appid">{APPID} (grouped by APPID folders)</option>
+                <option value="manifests">MANIFESTS/{APPID} (nested structure)</option>
+              </select>
+            </div>
+
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text">Filename Pattern</span>
+              </label>
+              <input type="text" id="filename-pattern" placeholder="{APPID}_{DATE}_{TIME}.lua" class="input input-bordered w-full" />
+              <label class="label">
+                <span class="label-text-alt">Tokens: {APPID}, {DATE}, {TIME}</span>
+              </label>
+            </div>
+
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text">Output Path</span>
+              </label>
+              <div class="flex gap-2">
+                <input type="text" id="output-path" placeholder="Select output folder..." class="input input-bordered flex-1" readonly />
+                <button id="browse-folder" class="btn btn-primary">Browse</button>
               </div>
             </div>
-            <button class="btn btn-primary mt-6">Get Started</button>
+
+            <div class="divider"></div>
+
+            <h3 class="font-semibold mb-2">Manifest Data</h3>
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text">Add Manifest Entry</span>
+              </label>
+              <div class="flex gap-2 mb-2">
+                <input type="text" id="manifest-appid" placeholder="APPID" class="input input-bordered input-sm flex-1" />
+                <input type="text" id="manifest-depotid" placeholder="DepotID" class="input input-bordered input-sm flex-1" />
+                <input type="text" id="manifest-manifestid" placeholder="ManifestID" class="input input-bordered input-sm flex-1" />
+                <button id="add-manifest" class="btn btn-sm btn-success">Add</button>
+              </div>
+            </div>
+
+            <div id="manifest-list" class="space-y-2 max-h-64 overflow-y-auto">
+            </div>
+
+            <div class="card-actions justify-end mt-4">
+              <button id="save-button" class="btn btn-primary btn-wide">Save Lua Files</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card bg-base-100 shadow-xl">
+          <div class="card-body">
+            <h2 class="card-title">Live Preview</h2>
+            
+            <div class="tabs tabs-boxed mb-4">
+              <a class="tab tab-active" data-tab="preview">Preview</a>
+              <a class="tab" data-tab="validation">Validation</a>
+            </div>
+
+            <div id="preview-content" class="tab-content">
+              <div class="mockup-code h-96 overflow-y-auto">
+                <pre id="preview-output"><code>-- No manifest data added yet</code></pre>
+              </div>
+            </div>
+
+            <div id="validation-content" class="tab-content hidden">
+              <div id="validation-status" class="space-y-2">
+                <div class="alert alert-info">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                  <span>All entries valid</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

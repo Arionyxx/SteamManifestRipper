@@ -120,22 +120,33 @@ async function loadAppData(options = {}) {
   const installedDepots = extractInstalledDepots(appState);
   
   const configVdfPath = path.join(steamRoot, 'config', 'config.vdf');
+  console.log('[DEBUG] loadAppData - Config VDF path:', configVdfPath);
+  
   const depotKeysResult = await parseDepotKeys(configVdfPath);
   result.warnings.push(...depotKeysResult.errors);
   const depotKeys = depotKeysResult.depotKeys;
+  
+  console.log('[DEBUG] loadAppData - Depot keys received from parseDepotKeys:', Object.keys(depotKeys));
+  console.log('[DEBUG] loadAppData - Total keys available:', Object.keys(depotKeys).length);
   
   for (const depot of installedDepots) {
     const depotType = classifyDepot(depot.depotId, appId);
     
     if (!includeDlc && depotType === 'dlc') {
+      console.log('[DEBUG] loadAppData - Skipping DLC depot:', depot.depotId);
       continue;
     }
     
+    console.log('[DEBUG] loadAppData - Looking up key for depot:', depot.depotId);
     const decryptionKey = depotKeys[depot.depotId] || '';
     
     if (!decryptionKey) {
+      console.log('[DEBUG] loadAppData - NO KEY FOUND for depot:', depot.depotId);
+      console.log('[DEBUG] loadAppData - Available depot IDs in map:', Object.keys(depotKeys));
       result.missingKeys.push(depot.depotId);
       result.warnings.push(`No decryption key found for depot ${depot.depotId}`);
+    } else {
+      console.log('[DEBUG] loadAppData - Key found for depot', depot.depotId, ':', decryptionKey.substring(0, 16) + '...');
     }
     
     result.depots.push({

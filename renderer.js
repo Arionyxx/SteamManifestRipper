@@ -1,149 +1,75 @@
 const state = {
-  config: {
-    defaultAppId: '',
-    outputFolder: '',
-    dumpMode: 'full',
-    filenamePattern: '{appid}_{depotid}.lua',
-    inferAppId: true,
-    structure: 'flat'
-  },
-  files: []
+  appId: '',
+  appName: '',
+  outputFolder: '',
+  includeDlc: true,
+  depots: [],
+  theme: 'dark'
 };
 
-function validateRow(file) {
-  const errors = [];
+function showToast(message, type = 'info') {
+  const toastContainer = document.getElementById('toast-container');
+  if (!toastContainer) return;
   
-  if (!file.manifestId || !/^\d+$/.test(file.manifestId)) {
-    errors.push('Invalid Manifest ID');
-  }
-  
-  if (!file.depotId || !/^\d+$/.test(file.depotId)) {
-    errors.push('Invalid Depot ID');
-  }
-  
-  if (!file.appId || !/^\d+$/.test(file.appId)) {
-    errors.push('Invalid or missing APPID');
-  }
-  
-  return {
-    valid: errors.length === 0,
-    errors: errors
+  const alertClasses = {
+    success: 'alert-success',
+    error: 'alert-error',
+    warning: 'alert-warning',
+    info: 'alert-info'
   };
+  
+  const toast = document.createElement('div');
+  toast.className = `alert ${alertClasses[type] || alertClasses.info} shadow-lg mb-2`;
+  toast.innerHTML = `
+    <div>
+      <span>${escapeHtml(message)}</span>
+    </div>
+  `;
+  
+  toastContainer.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.remove();
+  }, 5000);
 }
 
-function updateRowStatus() {
-  state.files.forEach((file, index) => {
-    const validation = validateRow(file);
-    file.valid = validation.valid;
-    file.status = validation.valid ? 'valid' : 'invalid';
-    file.errors = validation.errors;
-  });
-}
-
-function inferAppIdFromFilename(filename) {
-  const patterns = [
-    /app[_-]?(\d+)/i,
-    /(\d+)[_-]depot/i,
-    /^(\d+)/
-  ];
-  
-  for (const pattern of patterns) {
-    const match = filename.match(pattern);
-    if (match) return match[1];
-  }
-  
-  return '';
-}
-
-function applyInference() {
-  if (!state.config.inferAppId) return;
-  
-  state.files.forEach(file => {
-    if (!file.appId || file.appId === '') {
-      const inferred = inferAppIdFromFilename(file.name);
-      if (inferred) {
-        file.appId = inferred;
-      } else if (state.config.defaultAppId) {
-        file.appId = state.config.defaultAppId;
-      }
-    }
-  });
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 function generateLuaOutput() {
-  const validFiles = state.files.filter(f => f.valid);
+  const depotsWithKeys = state.depots.filter(d => d.decryptionKey);
   
-  if (validFiles.length === 0) {
-    return '-- No valid files to export\n-- Please ensure all required fields are filled correctly';
+  if (depotsWithKeys.length === 0) {
+    return '-- No depots with decryption keys available\n-- Load an app manifest with valid depot keys to generate output';
   }
   
-  let output = '-- Generated Lua Output\n';
-  output += `-- Dump Mode: ${state.config.dumpMode}\n`;
-  output += `-- Structure: ${state.config.structure}\n`;
-  output += `-- Generated: ${new Date().toISOString()}\n\n`;
+  let output = `-- Generated Lua script for App ID: ${state.appId}\n`;
+  if (state.appName) {
+    output += `-- App Name: ${state.appName}\n`;
+  }
+  output += `-- Generated: ${new Date().toISOString()}\n`;
+  output += `-- Include DLC: ${state.includeDlc ? 'Yes' : 'No'}\n\n`;
   
-  if (state.config.structure === 'flat') {
-    output += 'local depots = {\n';
-    validFiles.forEach(file => {
-      output += `  ["${file.depotId}"] = {\n`;
-      output += `    appid = ${file.appId},\n`;
-      output += `    manifestid = "${file.manifestId}",\n`;
-      output += `    depotid = ${file.depotId},\n`;
-      output += `    file = "${file.name}",\n`;
-      output += `    type = "${file.type}"\n`;
-      output += '  },\n';
-    });
-    output += '}\n\n';
-    output += 'return depots\n';
-  } else if (state.config.structure === 'nested') {
-    const byAppId = {};
-    validFiles.forEach(file => {
-      if (!byAppId[file.appId]) {
-        byAppId[file.appId] = [];
-      }
-      byAppId[file.appId].push(file);
-    });
-    
-    output += 'local apps = {\n';
-    Object.entries(byAppId).forEach(([appId, files]) => {
-      output += `  ["${appId}"] = {\n`;
-      output += '    depots = {\n';
-      files.forEach(file => {
-        output += `      ["${file.depotId}"] = {\n`;
-        output += `        manifestid = "${file.manifestId}",\n`;
-        output += `        file = "${file.name}",\n`;
-        output += `        type = "${file.type}"\n`;
-        output += '      },\n';
-      });
-      output += '    }\n';
-      output += '  },\n';
-    });
-    output += '}\n\n';
-    output += 'return apps\n';
-  } else if (state.config.structure === 'grouped') {
-    const byType = {};
-    validFiles.forEach(file => {
-      if (!byType[file.type]) {
-        byType[file.type] = [];
-      }
-      byType[file.type].push(file);
-    });
-    
-    output += 'local manifests = {\n';
-    Object.entries(byType).forEach(([type, files]) => {
-      output += `  ${type} = {\n`;
-      files.forEach(file => {
-        output += `    {\n`;
-        output += `      appid = ${file.appId},\n`;
-        output += `      manifestid = "${file.manifestId}",\n`;
-        output += `      depotid = ${file.depotId},\n`;
-        output += `      file = "${file.name}"\n`;
-        output += '    },\n';
-      });
-      output += '  },\n';
-    });
-    output += '}\n\n';
-    output += 'return manifests\n';
+  const mainDepots = depotsWithKeys.filter(d => d.type === 'main');
+  const dlcDepots = depotsWithKeys.filter(d => d.type === 'dlc');
+  
+  output += `addappid(${state.appId})\n`;
+  
+  if (mainDepots.length > 0) {
+    const mainDepot = mainDepots[0];
+    output += `setManifestid(${state.appId}, "${mainDepot.manifestId}")\n`;
+  }
+  
+  output += '\n';
+  
+  const depotsToInclude = state.includeDlc ? depotsWithKeys : mainDepots;
+  
+  for (const depot of depotsToInclude) {
+    output += `addappid(${depot.depotId}, 0, "${depot.decryptionKey}")\n`;
+    output += `setManifestid(${depot.depotId}, "${depot.manifestId}")\n`;
   }
   
   return output;
@@ -156,276 +82,258 @@ function updatePreview() {
     previewElement.textContent = preview;
   }
   
-  const validCount = state.files.filter(f => f.valid).length;
-  const totalCount = state.files.length;
+  const depotsWithKeys = state.depots.filter(d => d.decryptionKey).length;
+  const missingKeys = state.depots.filter(d => !d.decryptionKey).length;
+  const totalDepots = state.depots.length;
   
   const statValid = document.getElementById('stat-valid');
+  const statMissing = document.getElementById('stat-missing');
   const statTotal = document.getElementById('stat-total');
   
-  if (statValid) statValid.textContent = validCount;
-  if (statTotal) statTotal.textContent = totalCount;
+  if (statValid) statValid.textContent = depotsWithKeys;
+  if (statMissing) statMissing.textContent = missingKeys;
+  if (statTotal) statTotal.textContent = totalDepots;
   
-  const saveButton = document.getElementById('btn-save');
-  if (saveButton) {
-    saveButton.disabled = validCount === 0;
+  const btnGenerateLua = document.getElementById('btn-generate-lua');
+  const btnCopyManifests = document.getElementById('btn-copy-manifests');
+  
+  if (btnGenerateLua) {
+    btnGenerateLua.disabled = depotsWithKeys === 0;
+  }
+  
+  if (btnCopyManifests) {
+    btnCopyManifests.disabled = totalDepots === 0;
   }
 }
 
 function renderTable() {
-  const tbody = document.getElementById('table-files');
+  const tbody = document.getElementById('table-depots');
   if (!tbody) return;
   
-  if (state.files.length === 0) {
+  if (state.depots.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="7" class="text-center text-base-content/50 py-8">
-          No files loaded. Use "Scan Folder" or "Select Files" to begin.
+        <td colspan="5" class="text-center text-base-content/50 py-8">
+          No depots loaded. Enter an App ID and click "Load App Manifest" to begin.
         </td>
       </tr>
     `;
     return;
   }
   
-  tbody.innerHTML = state.files.map((file, index) => {
-    const validation = validateRow(file);
-    const statusClass = validation.valid ? 'badge-success' : 'badge-error';
-    const statusText = validation.valid ? 'Valid' : 'Invalid';
-    const rowClass = validation.valid ? '' : 'bg-error/10';
+  tbody.innerHTML = state.depots.map((depot, index) => {
+    const hasKey = depot.decryptionKey && depot.decryptionKey.length > 0;
+    const keyDisplay = hasKey 
+      ? `<span class="font-mono text-xs">${escapeHtml(depot.decryptionKey)}</span>` 
+      : `<span class="text-warning font-semibold">Missing</span>`;
+    const rowClass = hasKey ? '' : 'bg-warning/10';
+    const typeClass = depot.type === 'main' ? 'badge-primary' : 'badge-secondary';
     
     return `
       <tr class="${rowClass}">
         <td>${index + 1}</td>
-        <td>
-          <div class="flex flex-col">
-            <span class="font-mono text-xs">${escapeHtml(file.name)}</span>
-            ${!validation.valid ? `<span class="text-error text-xs mt-1">${validation.errors.join(', ')}</span>` : ''}
-          </div>
-        </td>
-        <td>
-          <input 
-            type="text" 
-            value="${escapeHtml(file.manifestId)}" 
-            data-index="${index}" 
-            data-field="manifestId"
-            class="input input-xs input-bordered w-full font-mono"
-            placeholder="Manifest ID"
-          />
-        </td>
-        <td>
-          <input 
-            type="text" 
-            value="${escapeHtml(file.depotId)}" 
-            data-index="${index}" 
-            data-field="depotId"
-            class="input input-xs input-bordered w-full font-mono"
-            placeholder="Depot ID"
-          />
-        </td>
-        <td>
-          <input 
-            type="text" 
-            value="${escapeHtml(file.appId)}" 
-            data-index="${index}" 
-            data-field="appId"
-            class="input input-xs input-bordered w-full font-mono"
-            placeholder="APPID"
-          />
-        </td>
-        <td>
-          <span class="badge badge-sm badge-ghost font-mono">${escapeHtml(file.type)}</span>
-        </td>
-        <td>
-          <span class="badge badge-sm ${statusClass}">${statusText}</span>
-        </td>
+        <td><span class="font-mono text-sm">${escapeHtml(depot.depotId)}</span></td>
+        <td><span class="font-mono text-sm">${escapeHtml(depot.manifestId)}</span></td>
+        <td>${keyDisplay}</td>
+        <td><span class="badge badge-sm ${typeClass}">${escapeHtml(depot.type.toUpperCase())}</span></td>
       </tr>
     `;
   }).join('');
-  
-  tbody.querySelectorAll('input[data-field]').forEach(input => {
-    input.addEventListener('input', handleCellEdit);
-  });
 }
 
-function handleCellEdit(event) {
-  const index = parseInt(event.target.dataset.index);
-  const field = event.target.dataset.field;
-  const value = event.target.value;
-  
-  if (state.files[index]) {
-    state.files[index][field] = value;
-    updateRowStatus();
-    renderTable();
-    updatePreview();
+function updateAppNameDisplay() {
+  const appNameDisplay = document.getElementById('app-name-display');
+  if (appNameDisplay) {
+    appNameDisplay.textContent = state.appName ? `App: ${state.appName}` : '';
   }
 }
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-async function handleScanFolder() {
-  if (!window.electronAPI) return;
-  
-  const result = await window.electronAPI.selectFolder();
-  if (result.success) {
-    const scanResult = await window.electronAPI.scanFiles(result.path);
-    if (scanResult.success) {
-      state.files = scanResult.files;
-      applyInference();
-      updateRowStatus();
-      renderTable();
-      updatePreview();
-    }
+async function handleLoadApp() {
+  if (!window.electronAPI) {
+    showToast('Electron API not available', 'error');
+    return;
   }
-}
-
-async function handleScanDepotcache() {
-  if (!window.electronAPI) return;
+  
+  const appIdInput = document.getElementById('input-appid');
+  const appId = appIdInput ? appIdInput.value.trim() : '';
+  
+  if (!appId || !/^\d+$/.test(appId)) {
+    showToast('Please enter a valid numeric App ID', 'error');
+    return;
+  }
+  
+  state.appId = appId;
   
   const options = {
-    defaultAppId: state.config.defaultAppId,
-    inferAppId: state.config.inferAppId
+    appId: state.appId,
+    includeDlc: state.includeDlc
   };
   
-  const result = await window.electronAPI.scanDepotcache(options);
+  showToast('Loading app data...', 'info');
+  
+  const result = await window.electronAPI.loadAppData(options);
   
   if (result.success) {
-    state.files = result.files;
-    updateRowStatus();
+    state.appName = result.appName || '';
+    state.depots = result.depots || [];
+    
     renderTable();
+    updateAppNameDisplay();
     updatePreview();
     
-    if (result.errors.length > 0) {
-      console.warn('Scan completed with errors:', result.errors);
-      alert(`Scan completed with warnings:\n${result.errors.slice(0, 5).join('\n')}${result.errors.length > 5 ? `\n... and ${result.errors.length - 5} more` : ''}`);
-    } else {
-      alert(`Successfully scanned ${result.libraries.length} Steam library location(s) and found ${result.files.length} manifest file(s).`);
+    const depotsWithKeys = state.depots.filter(d => d.decryptionKey).length;
+    const missingKeys = result.missingKeys ? result.missingKeys.length : 0;
+    
+    showToast(`Successfully loaded ${state.depots.length} depot(s). ${depotsWithKeys} with keys, ${missingKeys} missing keys.`, 'success');
+    
+    if (result.warnings && result.warnings.length > 0) {
+      console.warn('Warnings:', result.warnings);
     }
   } else {
-    alert(`Failed to scan Steam depotcache:\n${result.errors.join('\n')}`);
+    const errorMsg = result.errors && result.errors.length > 0 
+      ? result.errors.join('; ') 
+      : 'Unknown error occurred';
+    showToast(`Failed to load app data: ${errorMsg}`, 'error');
   }
 }
 
-async function handleSelectFiles() {
-  if (!window.electronAPI) return;
-  
-  const options = {
-    defaultAppId: state.config.defaultAppId,
-    inferAppId: state.config.inferAppId
-  };
-  
-  const result = await window.electronAPI.selectFiles(options);
-  if (result.success) {
-    state.files = result.files;
-    updateRowStatus();
-    renderTable();
-    updatePreview();
+async function handleGenerateLua() {
+  if (!window.electronAPI) {
+    showToast('Electron API not available', 'error');
+    return;
   }
-}
-
-async function handleSelectOutput() {
-  if (!window.electronAPI) return;
   
-  const result = await window.electronAPI.selectFolder();
-  if (result.success) {
-    state.config.outputFolder = result.path;
-    const input = document.getElementById('input-output-folder');
-    if (input) {
-      input.value = result.path;
-    }
-    updatePreview();
+  const depotsWithKeys = state.depots.filter(d => d.decryptionKey);
+  if (depotsWithKeys.length === 0) {
+    showToast('No depots with decryption keys available', 'warning');
+    return;
   }
-}
-
-async function handleSave() {
-  if (!window.electronAPI) return;
-  
-  const validFiles = state.files.filter(f => f.valid);
-  if (validFiles.length === 0) return;
   
   const luaContent = generateLuaOutput();
-  const filename = state.config.filenamePattern
-    .replace('{appid}', validFiles[0].appId)
-    .replace('{depotid}', validFiles[0].depotId)
-    .replace('{manifestid}', validFiles[0].manifestId);
+  const filename = `${state.appId}.lua`;
   
   const result = await window.electronAPI.saveOutput({
     content: luaContent,
     filename: filename,
-    outputFolder: state.config.outputFolder
+    outputFolder: state.outputFolder
   });
   
   if (result.success) {
-    alert(`File saved successfully to:\n${result.path}`);
+    showToast(`Lua file saved successfully: ${result.path}`, 'success');
   } else if (result.error) {
-    alert(`Error saving file:\n${result.error}`);
+    showToast(`Error saving file: ${result.error}`, 'error');
+  } else {
+    showToast('File save cancelled', 'info');
   }
 }
 
-function handleConfigChange(event) {
-  const id = event.target.id;
+async function handleCopyManifests() {
+  if (!window.electronAPI) {
+    showToast('Electron API not available', 'error');
+    return;
+  }
   
-  switch (id) {
-    case 'input-default-appid':
-      state.config.defaultAppId = event.target.value;
-      applyInference();
-      updateRowStatus();
-      renderTable();
-      updatePreview();
-      break;
-    case 'select-dump-mode':
-      state.config.dumpMode = event.target.value;
-      updatePreview();
-      break;
-    case 'input-filename-pattern':
-      state.config.filenamePattern = event.target.value;
-      break;
-    case 'checkbox-infer':
-      state.config.inferAppId = event.target.checked;
-      applyInference();
-      updateRowStatus();
-      renderTable();
-      updatePreview();
-      break;
+  if (state.depots.length === 0) {
+    showToast('No depots available to copy', 'warning');
+    return;
+  }
+  
+  if (!state.outputFolder) {
+    showToast('Please select an output directory first', 'warning');
+    return;
+  }
+  
+  const options = {
+    depots: state.depots,
+    destination: state.outputFolder
+  };
+  
+  showToast('Copying manifest files...', 'info');
+  
+  const result = await window.electronAPI.copyManifests(options);
+  
+  if (result.success) {
+    const copiedCount = result.copied ? result.copied.length : 0;
+    const missingCount = result.missing ? result.missing.length : 0;
+    
+    if (copiedCount > 0) {
+      showToast(`Successfully copied ${copiedCount} manifest file(s)`, 'success');
+    }
+    
+    if (missingCount > 0) {
+      showToast(`${missingCount} manifest file(s) not found in depotcache`, 'warning');
+    }
+    
+    if (result.errors && result.errors.length > 0) {
+      console.error('Copy errors:', result.errors);
+      showToast(`Errors occurred during copy: ${result.errors[0]}`, 'error');
+    }
+  } else {
+    const errorMsg = result.errors && result.errors.length > 0 
+      ? result.errors.join('; ') 
+      : 'Unknown error occurred';
+    showToast(`Failed to copy manifests: ${errorMsg}`, 'error');
   }
 }
 
-function handleStructureChange(event) {
-  if (event.target.name === 'structure') {
-    state.config.structure = event.target.value;
-    updatePreview();
+async function handleSelectOutput() {
+  if (!window.electronAPI) {
+    showToast('Electron API not available', 'error');
+    return;
+  }
+  
+  const result = await window.electronAPI.selectFolder();
+  if (result.success) {
+    state.outputFolder = result.path;
+    const input = document.getElementById('input-output-folder');
+    if (input) {
+      input.value = result.path;
+    }
+    showToast(`Output folder selected: ${result.path}`, 'success');
+  }
+}
+
+function handleIncludeDlcChange(event) {
+  state.includeDlc = event.target.checked;
+  updatePreview();
+}
+
+function handleThemeToggle(event) {
+  const htmlElement = document.documentElement;
+  const isChecked = event.target.checked;
+  
+  if (isChecked) {
+    htmlElement.setAttribute('data-theme', 'light');
+    state.theme = 'light';
+  } else {
+    htmlElement.setAttribute('data-theme', 'dark');
+    state.theme = 'dark';
   }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  const btnScan = document.getElementById('btn-scan');
-  const btnScanDepot = document.getElementById('btn-scan-depot');
-  const btnSelectFiles = document.getElementById('btn-select-files');
+  const btnLoadApp = document.getElementById('btn-load-app');
+  const btnGenerateLua = document.getElementById('btn-generate-lua');
+  const btnCopyManifests = document.getElementById('btn-copy-manifests');
   const btnSelectOutput = document.getElementById('btn-select-output');
-  const btnSave = document.getElementById('btn-save');
+  const checkboxIncludeDlc = document.getElementById('checkbox-include-dlc');
+  const themeToggle = document.getElementById('theme-toggle');
   
-  if (btnScan) btnScan.addEventListener('click', handleScanFolder);
-  if (btnScanDepot) btnScanDepot.addEventListener('click', handleScanDepotcache);
-  if (btnSelectFiles) btnSelectFiles.addEventListener('click', handleSelectFiles);
+  if (btnLoadApp) btnLoadApp.addEventListener('click', handleLoadApp);
+  if (btnGenerateLua) btnGenerateLua.addEventListener('click', handleGenerateLua);
+  if (btnCopyManifests) btnCopyManifests.addEventListener('click', handleCopyManifests);
   if (btnSelectOutput) btnSelectOutput.addEventListener('click', handleSelectOutput);
-  if (btnSave) btnSave.addEventListener('click', handleSave);
+  if (checkboxIncludeDlc) checkboxIncludeDlc.addEventListener('change', handleIncludeDlcChange);
+  if (themeToggle) themeToggle.addEventListener('change', handleThemeToggle);
   
-  const inputDefaultAppId = document.getElementById('input-default-appid');
-  const selectDumpMode = document.getElementById('select-dump-mode');
-  const inputFilenamePattern = document.getElementById('input-filename-pattern');
-  const checkboxInfer = document.getElementById('checkbox-infer');
-  
-  if (inputDefaultAppId) inputDefaultAppId.addEventListener('input', handleConfigChange);
-  if (selectDumpMode) selectDumpMode.addEventListener('change', handleConfigChange);
-  if (inputFilenamePattern) inputFilenamePattern.addEventListener('input', handleConfigChange);
-  if (checkboxInfer) checkboxInfer.addEventListener('change', handleConfigChange);
-  
-  const structureRadios = document.querySelectorAll('input[name="structure"]');
-  structureRadios.forEach(radio => {
-    radio.addEventListener('change', handleStructureChange);
-  });
+  const inputAppId = document.getElementById('input-appid');
+  if (inputAppId) {
+    inputAppId.addEventListener('keypress', (event) => {
+      if (event.key === 'Enter') {
+        handleLoadApp();
+      }
+    });
+  }
   
   renderTable();
   updatePreview();

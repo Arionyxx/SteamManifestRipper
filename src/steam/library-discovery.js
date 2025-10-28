@@ -1,47 +1,28 @@
 const fs = require('fs').promises;
 const path = require('path');
-const os = require('os');
 const { parseVDFFile } = require('../parsers/vdf-parser');
-
-function getDefaultSteamPath() {
-  const platform = process.platform;
-  
-  switch (platform) {
-    case 'win32':
-      return path.join('C:', 'Program Files (x86)', 'Steam');
-    case 'darwin':
-      return path.join(os.homedir(), 'Library', 'Application Support', 'Steam');
-    case 'linux':
-      return path.join(os.homedir(), '.steam', 'steam');
-    default:
-      return null;
-  }
-}
+const { resolveSteamRoot } = require('./config-reader');
 
 function getLibraryFoldersVDFPath(steamPath) {
   return path.join(steamPath, 'steamapps', 'libraryfolders.vdf');
 }
 
-async function discoverLibraryFolders() {
+async function discoverLibraryFolders(steamPathOverride = null) {
   const errors = [];
   const libraries = [];
   
-  const defaultSteamPath = getDefaultSteamPath();
-  if (!defaultSteamPath) {
-    errors.push('Unsupported platform for Steam detection');
+  const steamRootResult = await resolveSteamRoot(steamPathOverride);
+  if (!steamRootResult.success) {
+    errors.push(...steamRootResult.errors);
     return { success: false, libraries: [], errors };
   }
   
-  try {
-    await fs.access(defaultSteamPath);
-  } catch (error) {
-    errors.push(`Steam installation not found at default path: ${defaultSteamPath}`);
-    return { success: false, libraries: [], errors };
-  }
+  const steamRoot = steamRootResult.steamRoot;
+  errors.push(...steamRootResult.errors);
   
-  libraries.push(defaultSteamPath);
+  libraries.push(steamRoot);
   
-  const libraryFoldersPath = getLibraryFoldersVDFPath(defaultSteamPath);
+  const libraryFoldersPath = getLibraryFoldersVDFPath(steamRoot);
   
   try {
     await fs.access(libraryFoldersPath);
@@ -88,7 +69,6 @@ async function getSteamAppsPath(libraryPath) {
 }
 
 module.exports = {
-  getDefaultSteamPath,
   getLibraryFoldersVDFPath,
   discoverLibraryFolders,
   getDepotCachePath,

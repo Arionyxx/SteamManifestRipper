@@ -41,3 +41,4 @@ out/
 src/tests/fixtures/temp-*.vdf
 src/tests/fixtures/test-steam-root/
 src/tests/fixtures/test-steam-root-nokey/
+src/tests/fixtures/test-output/

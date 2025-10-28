@@ -1,6 +1,8 @@
 const fs = require('fs').promises;
 const path = require('path');
+const os = require('os');
 const { parseVDFFile } = require('../parsers/vdf-parser');
+const { getSteamInstallPathFromRegistry } = require('./registry-reader');
 
 async function parseDepotKeys(configVdfPath) {
   const depotKeys = {};
@@ -43,6 +45,27 @@ async function parseDepotKeys(configVdfPath) {
   return { depotKeys, errors };
 }
 
+function getDefaultSteamPaths() {
+  const platform = process.platform;
+  
+  switch (platform) {
+    case 'win32':
+      return [
+        path.join('C:', 'Program Files (x86)', 'Steam'),
+        path.join('C:', 'Program Files', 'Steam')
+      ];
+    case 'darwin':
+      return [path.join(os.homedir(), 'Library', 'Application Support', 'Steam')];
+    case 'linux':
+      return [
+        path.join(os.homedir(), '.steam', 'steam'),
+        path.join(os.homedir(), '.local', 'share', 'Steam')
+      ];
+    default:
+      return [];
+  }
+}
+
 async function resolveSteamRoot(steamPathOverride = null) {
   const errors = [];
   let steamRoot = null;
@@ -56,13 +79,30 @@ async function resolveSteamRoot(steamPathOverride = null) {
     }
   }
   
+  if (!steamRoot && process.platform === 'win32') {
+    const registryResult = await getSteamInstallPathFromRegistry();
+    if (registryResult.success && registryResult.path) {
+      try {
+        await fs.access(registryResult.path);
+        steamRoot = registryResult.path;
+      } catch (error) {
+        errors.push(`Registry Steam path not accessible: ${registryResult.path}`);
+      }
+    } else {
+      errors.push(`Registry lookup failed: ${registryResult.error}`);
+    }
+  }
+  
   if (!steamRoot) {
-    const defaultPath = path.join('C:', 'Program Files (x86)', 'Steam');
-    try {
-      await fs.access(defaultPath);
-      steamRoot = defaultPath;
-    } catch (error) {
-      errors.push(`Default Steam path not found: ${defaultPath}`);
+    const defaultPaths = getDefaultSteamPaths();
+    for (const defaultPath of defaultPaths) {
+      try {
+        await fs.access(defaultPath);
+        steamRoot = defaultPath;
+        break;
+      } catch (error) {
+        errors.push(`Steam path not found: ${defaultPath}`);
+      }
     }
   }
   
@@ -75,5 +115,6 @@ async function resolveSteamRoot(steamPathOverride = null) {
 
 module.exports = {
   parseDepotKeys,
-  resolveSteamRoot
+  resolveSteamRoot,
+  getDefaultSteamPaths
 };

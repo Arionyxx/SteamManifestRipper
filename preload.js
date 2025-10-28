@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   selectFolder: () => ipcRenderer.invoke('dialog:selectFolder'),
   scanFiles: (folderPath) => ipcRenderer.invoke('scan:files', folderPath),
-  selectFiles: () => ipcRenderer.invoke('dialog:selectFiles'),
+  selectFiles: (options) => ipcRenderer.invoke('dialog:selectFiles', options),
+  scanDepotcache: (options) => ipcRenderer.invoke('steam:scanDepotcache', options),
   saveOutput: (data) => ipcRenderer.invoke('save:output', data)
 });

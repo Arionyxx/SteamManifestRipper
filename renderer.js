@@ -281,13 +281,44 @@ async function handleScanFolder() {
   }
 }
 
+async function handleScanDepotcache() {
+  if (!window.electronAPI) return;
+  
+  const options = {
+    defaultAppId: state.config.defaultAppId,
+    inferAppId: state.config.inferAppId
+  };
+  
+  const result = await window.electronAPI.scanDepotcache(options);
+  
+  if (result.success) {
+    state.files = result.files;
+    updateRowStatus();
+    renderTable();
+    updatePreview();
+    
+    if (result.errors.length > 0) {
+      console.warn('Scan completed with errors:', result.errors);
+      alert(`Scan completed with warnings:\n${result.errors.slice(0, 5).join('\n')}${result.errors.length > 5 ? `\n... and ${result.errors.length - 5} more` : ''}`);
+    } else {
+      alert(`Successfully scanned ${result.libraries.length} Steam library location(s) and found ${result.files.length} manifest file(s).`);
+    }
+  } else {
+    alert(`Failed to scan Steam depotcache:\n${result.errors.join('\n')}`);
+  }
+}
+
 async function handleSelectFiles() {
   if (!window.electronAPI) return;
   
-  const result = await window.electronAPI.selectFiles();
+  const options = {
+    defaultAppId: state.config.defaultAppId,
+    inferAppId: state.config.inferAppId
+  };
+  
+  const result = await window.electronAPI.selectFiles(options);
   if (result.success) {
     state.files = result.files;
-    applyInference();
     updateRowStatus();
     renderTable();
     updatePreview();
@@ -370,11 +401,13 @@ function handleStructureChange(event) {
 
 document.addEventListener('DOMContentLoaded', () => {
   const btnScan = document.getElementById('btn-scan');
+  const btnScanDepot = document.getElementById('btn-scan-depot');
   const btnSelectFiles = document.getElementById('btn-select-files');
   const btnSelectOutput = document.getElementById('btn-select-output');
   const btnSave = document.getElementById('btn-save');
   
   if (btnScan) btnScan.addEventListener('click', handleScanFolder);
+  if (btnScanDepot) btnScanDepot.addEventListener('click', handleScanDepotcache);
   if (btnSelectFiles) btnSelectFiles.addEventListener('click', handleSelectFiles);
   if (btnSelectOutput) btnSelectOutput.addEventListener('click', handleSelectOutput);
   if (btnSave) btnSave.addEventListener('click', handleSave);

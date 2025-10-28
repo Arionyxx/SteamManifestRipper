@@ -23,15 +23,39 @@ async function parseDepotKeys(configVdfPath) {
   
   try {
     const data = vdfResult.data;
-    const depots = data?.InstallConfigStore?.Software?.Valve?.Steam?.depots;
+    
+    // Try multiple possible paths to find the depots object
+    // Some config.vdf files might have slightly different structures
+    let depots = null;
+    
+    // Standard path
+    depots = data?.InstallConfigStore?.Software?.Valve?.Steam?.depots;
+    
+    // Alternative paths (for different Steam versions or configurations)
+    if (!depots) {
+      depots = data?.Software?.Valve?.Steam?.depots;
+    }
+    if (!depots) {
+      depots = data?.Steam?.depots;
+    }
+    if (!depots) {
+      depots = data?.depots;
+    }
     
     if (depots && typeof depots === 'object') {
       for (const [depotId, depotData] of Object.entries(depots)) {
+        // Only process numeric depot IDs
         if (/^\d+$/.test(depotId) && typeof depotData === 'object') {
-          const decryptionKey = depotData.DecryptionKey || depotData.decryptionkey;
+          // Try both capitalized and lowercase variations
+          const decryptionKey = depotData.DecryptionKey || 
+                               depotData.decryptionkey || 
+                               depotData.decryptionKey ||
+                               depotData.DECRYPTIONKEY;
+          
           if (decryptionKey && typeof decryptionKey === 'string') {
             const hexKey = decryptionKey.trim();
-            if (/^[0-9A-Fa-f]+$/.test(hexKey)) {
+            // Validate that it's a valid hex string
+            if (/^[0-9A-Fa-f]+$/.test(hexKey) && hexKey.length > 0) {
               depotKeys[depotId] = hexKey;
             }
           }

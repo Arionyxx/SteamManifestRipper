@@ -212,6 +212,49 @@ function testInvalidHexKeys() {
     });
 }
 
+function testRealWorldDepotKeys() {
+  console.log('\nTesting real-world depot keys with 64-character hex...');
+  
+  const fixturePath = path.join(__dirname, 'fixtures', 'sample-config-201790.vdf');
+  
+  return parseDepotKeys(fixturePath).then(result => {
+    const { depotKeys, errors } = result;
+    
+    console.log('Extracted depot keys:', depotKeys);
+    console.log('Errors:', errors);
+    
+    // Check for the specific depot IDs mentioned in the ticket
+    const expectedKeys = {
+      '201791': '07e18a6715cee99f3c872f9fc3f7484243f7bf6c8dcbf57bebd21c3ed7e8e08a',
+      '413151': 'ff71699a17787b798d901cb27398556eb69a498b690b4392b2ffedcacc1019ff',
+      '594653': 'abc123def456789012345678901234567890abcdef1234567890123456789012'
+    };
+    
+    let allMatch = true;
+    for (const [depotId, expectedKey] of Object.entries(expectedKeys)) {
+      if (depotKeys[depotId] !== expectedKey) {
+        console.error(`✗ Key mismatch for depot ${depotId}`);
+        console.error(`  Expected: ${expectedKey}`);
+        console.error(`  Got: ${depotKeys[depotId]}`);
+        allMatch = false;
+      }
+    }
+    
+    if (allMatch && Object.keys(depotKeys).length === 3) {
+      console.log('✓ Real-world depot keys extracted correctly');
+      console.log('  - 64-character hex keys validated');
+      console.log('  - Depot IDs 201791, 413151, 594653 found');
+      return true;
+    } else {
+      console.error('✗ Real-world depot key extraction failed');
+      return false;
+    }
+  }).catch(error => {
+    console.error('✗ Test threw error:', error.message);
+    return false;
+  });
+}
+
 async function runTests() {
   console.log('=== Config Reader Tests ===\n');
   
@@ -222,7 +265,8 @@ async function runTests() {
     testMissingConfigFile(),
     testEmptyConfigFile(),
     testManifestFilenameExtraction(),
-    testInvalidHexKeys()
+    testInvalidHexKeys(),
+    testRealWorldDepotKeys()
   ]);
   
   const passed = results.filter(r => r).length;

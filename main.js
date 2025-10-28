@@ -51,7 +51,15 @@ ipcMain.handle('steam:loadAppData', async (event, options = {}) => {
 
 ipcMain.handle('steam:copyManifests', async (event, options = {}) => {
   try {
-    const result = await copyManifests(options);
+    // Set default output directory if not provided
+    const outputDir = options.destination || path.join(app.getPath('userData'), 'output');
+    
+    const result = await copyManifests({
+      ...options,
+      destination: outputDir,
+      organizeByAppId: true  // Always organize by AppID
+    });
+    
     return result;
   } catch (error) {
     return {
@@ -65,8 +73,64 @@ ipcMain.handle('steam:copyManifests', async (event, options = {}) => {
 
 ipcMain.handle('save:output', async (event, data) => {
   try {
+    // Determine output directory
+    const baseOutputDir = data.outputFolder || path.join(app.getPath('userData'), 'output');
+    
+    // If AppID is provided, create AppID subfolder
+    let outputDir = baseOutputDir;
+    if (data.appId) {
+      outputDir = path.join(baseOutputDir, data.appId.toString());
+    }
+    
+    // Ensure directory exists
+    await fs.mkdir(outputDir, { recursive: true });
+    
+    // Build full output path
+    const filename = data.filename || 'output.lua';
+    const outputPath = path.join(outputDir, filename);
+    
+    // Save file directly without dialog
+    if (data.autoSave !== false) {
+      await fs.writeFile(outputPath, data.content, 'utf8');
+      return { success: true, path: outputPath };
+    }
+    
+    // Show save dialog if autoSave is explicitly disabled
     const result = await dialog.showSaveDialog({
-      defaultPath: path.join(data.outputFolder || '', data.filename || 'output.lua'),
+      defaultPath: outputPath,
+      filters: [
+        { name: 'Lua Files', extensions: ['lua'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+    
+    if (!result.canceled && result.filePath) {
+      await fs.writeFile(result.filePath, data.content, 'utf8');
+      return { success: true, path: result.filePath };
+    }
+    
+    return { success: false };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('save:outputWithDialog', async (event, data) => {
+  try {
+    const baseOutputDir = data.outputFolder || path.join(app.getPath('userData'), 'output');
+    let defaultPath = baseOutputDir;
+    
+    // If AppID provided, set default to AppID subfolder
+    if (data.appId) {
+      defaultPath = path.join(baseOutputDir, data.appId.toString());
+      await fs.mkdir(defaultPath, { recursive: true });
+    }
+    
+    const filename = data.filename || 'output.lua';
+    defaultPath = path.join(defaultPath, filename);
+    
+    const result = await dialog.showSaveDialog({
+      defaultPath: defaultPath,
       filters: [
         { name: 'Lua Files', extensions: ['lua'] },
         { name: 'All Files', extensions: ['*'] }
@@ -81,6 +145,25 @@ ipcMain.handle('save:output', async (event, data) => {
   } catch (error) {
     return { success: false, error: error.message };
   }
+});
+
+ipcMain.handle('file:ensureDirectory', async (event, dirPath) => {
+  try {
+    await fs.mkdir(dirPath, { recursive: true });
+    return { success: true, path: dirPath };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('file:getOutputPath', async (event, appId = null) => {
+  const baseOutputDir = path.join(app.getPath('userData'), 'output');
+  
+  if (appId) {
+    return path.join(baseOutputDir, appId.toString());
+  }
+  
+  return baseOutputDir;
 });
 
 ipcMain.handle('settings:load', async () => {

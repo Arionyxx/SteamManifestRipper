@@ -16,16 +16,13 @@ async function queryWindowsRegistry(keyPath, valueName) {
       valueName
     ], { timeout: 5000 });
 
-    const lines = stdout.split('\n');
-    for (const line of lines) {
-      if (line.includes(valueName)) {
-        const parts = line.trim().split(/\s+/);
-        const valueIndex = parts.indexOf(valueName);
-        if (valueIndex !== -1 && parts.length > valueIndex + 2) {
-          const value = parts.slice(valueIndex + 2).join(' ').trim();
-          return { success: true, value, error: null };
-        }
-      }
+    // Parse registry output
+    // Format: "    InstallPath    REG_SZ    C:\Program Files (x86)\Steam"
+    const match = stdout.match(new RegExp(`${valueName}\\s+REG_\\w+\\s+(.+)`, 'i'));
+    
+    if (match && match[1]) {
+      const value = match[1].trim();
+      return { success: true, value, error: null };
     }
 
     return { success: false, value: null, error: 'Value not found in registry output' };
@@ -36,8 +33,9 @@ async function queryWindowsRegistry(keyPath, valueName) {
 
 async function getSteamInstallPathFromRegistry() {
   const registryPaths = [
-    'HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam',
-    'HKLM\\SOFTWARE\\Valve\\Steam'
+    'HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam',  // 64-bit Windows, 32-bit app
+    'HKLM\\SOFTWARE\\Valve\\Steam',                // 32-bit Windows or 64-bit app
+    'HKCU\\SOFTWARE\\Valve\\Steam'                 // Per-user installation (fallback)
   ];
 
   for (const registryPath of registryPaths) {

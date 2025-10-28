@@ -49,6 +49,34 @@ function extractDepotId(filename) {
   return '';
 }
 
+async function ensureDirectoryExists(dirPath) {
+  try {
+    await fs.mkdir(dirPath, { recursive: true });
+  } catch (error) {
+    if (error.code !== 'EEXIST') {
+      throw error;
+    }
+  }
+}
+
+async function copyManifestToOutput(sourcePath, appId, filename, outputDir = './output') {
+  if (!appId || appId === '') {
+    appId = 'unknown';
+  }
+  
+  const appFolder = path.join(outputDir, appId);
+  await ensureDirectoryExists(appFolder);
+  
+  const destPath = path.join(appFolder, filename);
+  
+  try {
+    await fs.copyFile(sourcePath, destPath);
+    return { success: true, path: destPath };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
 async function buildAppDepotMap(steamRoot) {
   const appDepotMap = {};
   const depotAppMap = {};
@@ -153,7 +181,9 @@ async function scanDepotCache(options = {}) {
   const {
     defaultAppId = '',
     inferAppId = true,
-    steamPathOverride = null
+    steamPathOverride = null,
+    outputDir = './output',
+    autoCopy = false
   } = options;
   
   const result = {
@@ -161,7 +191,8 @@ async function scanDepotCache(options = {}) {
     files: [],
     steamRoot: null,
     errors: [],
-    warnings: []
+    warnings: [],
+    copied: []
   };
   
   const steamRootResult = await resolveSteamRoot(steamPathOverride);
@@ -228,6 +259,27 @@ async function scanDepotCache(options = {}) {
       row.status = statusResult.status;
       row.errors = statusResult.errors;
       
+      if (autoCopy && appId) {
+        const copyResult = await copyManifestToOutput(
+          manifest.path,
+          appId,
+          manifest.filename,
+          outputDir
+        );
+        
+        if (copyResult.success) {
+          row.outputPath = copyResult.path;
+          result.copied.push({
+            source: manifest.path,
+            destination: copyResult.path,
+            appId: appId,
+            filename: manifest.filename
+          });
+        } else {
+          result.warnings.push(`Failed to copy ${manifest.filename}: ${copyResult.error}`);
+        }
+      }
+      
       result.files.push(row);
     }
   }
@@ -275,10 +327,50 @@ async function parseManifestFile(filePath, options = {}) {
   return row;
 }
 
+async function exportManifestsToOutput(files, outputDir = './output') {
+  const result = {
+    success: false,
+    copied: [],
+    errors: []
+  };
+  
+  await ensureDirectoryExists(outputDir);
+  
+  for (const file of files) {
+    if (!file.appId || file.appId === '') {
+      result.errors.push(`Skipping ${file.name}: No AppID`);
+      continue;
+    }
+    
+    const copyResult = await copyManifestToOutput(
+      file.path,
+      file.appId,
+      file.name,
+      outputDir
+    );
+    
+    if (copyResult.success) {
+      result.copied.push({
+        source: file.path,
+        destination: copyResult.path,
+        appId: file.appId,
+        filename: file.name
+      });
+    } else {
+      result.errors.push(`Failed to copy ${file.name}: ${copyResult.error}`);
+    }
+  }
+  
+  result.success = result.copied.length > 0;
+  return result;
+}
+
 module.exports = {
   scanDepotCache,
   parseManifestFile,
   extractManifestId,
   extractDepotId,
-  buildAppDepotMap
+  buildAppDepotMap,
+  exportManifestsToOutput,
+  copyManifestToOutput
 };

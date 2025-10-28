@@ -11,6 +11,7 @@ async function findAppManifest(appId, libraries) {
       await fs.access(manifestPath);
       return manifestPath;
     } catch (error) {
+      // Continue searching in other libraries
     }
   }
   return null;
@@ -30,16 +31,19 @@ function extractInstalledDepots(appState) {
       const depotId = key;
       let manifestId = '';
       
+      // Handle both object format and string format
       if (typeof value === 'object' && value.manifest) {
         manifestId = value.manifest;
       } else if (typeof value === 'string') {
         manifestId = value;
       }
       
-      depots.push({
-        depotId,
-        manifestId
-      });
+      if (manifestId) {
+        depots.push({
+          depotId,
+          manifestId
+        });
+      }
     }
   }
   
@@ -54,6 +58,7 @@ function classifyDepot(depotId, appId) {
     return 'unknown';
   }
   
+  // DLC depots are typically 100000+ higher than the base AppID
   if (depotIdNum > appIdNum + 100000) {
     return 'dlc';
   }
@@ -79,6 +84,7 @@ async function loadAppData(options = {}) {
     return result;
   }
   
+  // Resolve Steam root directory
   const steamRootResult = await resolveSteamRoot(steamPathOverride);
   if (!steamRootResult.success) {
     result.errors.push(...steamRootResult.errors);
@@ -88,6 +94,7 @@ async function loadAppData(options = {}) {
   const steamRoot = steamRootResult.steamRoot;
   result.warnings.push(...steamRootResult.errors);
   
+  // Discover all Steam library folders
   const librariesResult = await discoverLibraryFolders(steamPathOverride);
   if (!librariesResult.success || librariesResult.libraries.length === 0) {
     result.errors.push('No Steam libraries found');
@@ -97,12 +104,14 @@ async function loadAppData(options = {}) {
   
   result.warnings.push(...librariesResult.errors);
   
+  // Find the app manifest file
   const manifestPath = await findAppManifest(appId, librariesResult.libraries);
   if (!manifestPath) {
-    result.errors.push(`App manifest not found for app ID ${appId}`);
+    result.errors.push(`App manifest not found for app ID ${appId}. Make sure the game is installed.`);
     return result;
   }
   
+  // Parse the VDF manifest file
   const vdfResult = await parseVDFFile(manifestPath);
   if (!vdfResult.success) {
     result.errors.push(`Failed to parse app manifest: ${vdfResult.error}`);
@@ -115,54 +124,75 @@ async function loadAppData(options = {}) {
     return result;
   }
   
+  // Extract app name
   result.appName = appState.name || appState.Name || '';
   
+  // Extract installed depots with their manifest IDs
   const installedDepots = extractInstalledDepots(appState);
   
-  const configVdfPath = path.join(steamRoot, 'config', 'config.vdf');
-  console.log('[DEBUG] loadAppData - Config VDF path:', configVdfPath);
+  if (installedDepots.length === 0) {
+    result.warnings.push('No installed depots found in app manifest');
+  }
   
+  // Load depot decryption keys from config.vdf
+  const configVdfPath = path.join(steamRoot, 'config', 'config.vdf');
   const depotKeysResult = await parseDepotKeys(configVdfPath);
   result.warnings.push(...depotKeysResult.errors);
   const depotKeys = depotKeysResult.depotKeys;
   
-  console.log('[DEBUG] loadAppData - Depot keys received from parseDepotKeys:', Object.keys(depotKeys));
-  console.log('[DEBUG] loadAppData - Total keys available:', Object.keys(depotKeys).length);
+  console.log(`[INFO] Loaded ${Object.keys(depotKeys).length} depot keys from config.vdf`);
   
+  // Process each depot
   for (const depot of installedDepots) {
     const depotType = classifyDepot(depot.depotId, appId);
     
+    // Skip DLC if not included
     if (!includeDlc && depotType === 'dlc') {
-      console.log('[DEBUG] loadAppData - Skipping DLC depot:', depot.depotId);
       continue;
     }
     
-    console.log('[DEBUG] loadAppData - Looking up key for depot:', depot.depotId);
+    // Look up decryption key
     const decryptionKey = depotKeys[depot.depotId] || '';
     
     if (!decryptionKey) {
-      console.log('[DEBUG] loadAppData - NO KEY FOUND for depot:', depot.depotId);
-      console.log('[DEBUG] loadAppData - Available depot IDs in map:', Object.keys(depotKeys));
       result.missingKeys.push(depot.depotId);
       result.warnings.push(`No decryption key found for depot ${depot.depotId}`);
-    } else {
-      console.log('[DEBUG] loadAppData - Key found for depot', depot.depotId, ':', decryptionKey.substring(0, 16) + '...');
     }
     
     result.depots.push({
       depotId: depot.depotId,
       manifestId: depot.manifestId,
       type: depotType,
-      decryptionKey
+      decryptionKey,
+      appId: appId  // Include AppID for organization
     });
+  }
+  
+  if (result.depots.length === 0) {
+    result.warnings.push('No depots available after filtering');
   }
   
   result.success = true;
   return result;
 }
 
+async function loadMultipleApps(appIds, options = {}) {
+  const results = [];
+  
+  for (const appId of appIds) {
+    const result = await loadAppData({
+      ...options,
+      appId
+    });
+    results.push(result);
+  }
+  
+  return results;
+}
+
 module.exports = {
   loadAppData,
+  loadMultipleApps,
   findAppManifest,
   extractInstalledDepots,
   classifyDepot

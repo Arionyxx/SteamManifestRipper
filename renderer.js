@@ -29,8 +29,13 @@ async function loadSettings() {
       }
       
       const outputFolderInput = document.getElementById('input-output-folder');
-      if (outputFolderInput) {
+      if (outputFolderInput && state.outputFolder) {
         outputFolderInput.value = state.outputFolder;
+      } else if (outputFolderInput) {
+        // Show default output path
+        const defaultPath = await window.electronAPI.getOutputPath();
+        outputFolderInput.value = defaultPath;
+        outputFolderInput.placeholder = defaultPath;
       }
       
       const themeToggle = document.getElementById('theme-toggle');
@@ -242,6 +247,13 @@ async function handleLoadApp() {
     if (result.warnings && result.warnings.length > 0) {
       console.warn('Warnings:', result.warnings);
     }
+    
+    // Update output folder display with AppID path
+    const outputPath = await window.electronAPI.getOutputPath(state.appId);
+    const outputFolderInput = document.getElementById('input-output-folder');
+    if (outputFolderInput) {
+      outputFolderInput.placeholder = outputPath;
+    }
   } else {
     const errorMsg = result.errors && result.errors.length > 0 
       ? result.errors.join('; ') 
@@ -263,16 +275,21 @@ async function handleGenerateLua() {
   }
   
   const luaContent = generateLuaOutput();
-  const filename = `${state.appId}.lua`;
+  const filename = `${state.appId}.lua`;  // Use AppID as filename
   
+  showToast('Saving Lua script...', 'info');
+  
+  // Automatically save to output/[AppID]/ folder
   const result = await window.electronAPI.saveOutput({
     content: luaContent,
     filename: filename,
-    outputFolder: state.outputFolder
+    appId: state.appId,
+    outputFolder: state.outputFolder,
+    autoSave: true  // Skip dialog, save directly
   });
   
   if (result.success) {
-    showToast(`Lua file saved successfully: ${result.path}`, 'success');
+    showToast(`Lua file saved: ${result.path}`, 'success');
   } else if (result.error) {
     showToast(`Error saving file: ${result.error}`, 'error');
   } else {
@@ -291,14 +308,17 @@ async function handleCopyManifests() {
     return;
   }
   
-  if (!state.outputFolder) {
-    showToast('Please select an output directory first', 'warning');
-    return;
-  }
+  // Add AppID to each depot for organization
+  const depotsWithAppId = state.depots.map(depot => ({
+    depotId: depot.depotId,
+    manifestId: depot.manifestId,
+    appId: state.appId
+  }));
   
   const options = {
-    depots: state.depots,
-    destination: state.outputFolder
+    depots: depotsWithAppId,
+    destination: state.outputFolder || undefined,  // Use default if not set
+    organizeByAppId: true
   };
   
   showToast('Copying manifest files...', 'info');
@@ -310,7 +330,10 @@ async function handleCopyManifests() {
     const missingCount = result.missing ? result.missing.length : 0;
     
     if (copiedCount > 0) {
-      showToast(`Successfully copied ${copiedCount} manifest file(s)`, 'success');
+      // Show where files were saved
+      const firstCopied = result.copied[0];
+      const savedToPath = firstCopied.destination;
+      showToast(`Copied ${copiedCount} manifest(s) to: ${savedToPath}`, 'success');
     }
     
     if (missingCount > 0) {
@@ -342,7 +365,7 @@ async function handleSelectOutput() {
     if (input) {
       input.value = result.path;
     }
-    showToast(`Output folder selected: ${result.path}`, 'success');
+    showToast(`Custom output folder selected: ${result.path}`, 'success');
     await saveSettings();
   }
 }
@@ -364,6 +387,20 @@ async function handleThemeToggle(event) {
     htmlElement.setAttribute('data-theme', 'dark');
     state.theme = 'dark';
   }
+  await saveSettings();
+}
+
+async function handleResetOutputFolder() {
+  state.outputFolder = '';
+  
+  const input = document.getElementById('input-output-folder');
+  if (input) {
+    const defaultPath = await window.electronAPI.getOutputPath(state.appId);
+    input.value = '';
+    input.placeholder = defaultPath;
+  }
+  
+  showToast('Reset to default output folder', 'info');
   await saveSettings();
 }
 

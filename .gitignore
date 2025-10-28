@@ -1,40 +1,42 @@
 # Dependencies
 node_modules/
 package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Output (from electron-packager and electron-builder)
+build-output/
+dist-electron/
+win-unpacked/
+*.exe
+*.dmg
+*.AppImage
 
 # Generated files
 src/output.css
 
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
+# Local user settings
+*.local
+.env.local
+.env.*.local
 
-# OS files
+# macOS/Linux OS files
 .DS_Store
 Thumbs.db
 
-# IDE
+# Editor & IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# Build output
+# Build output directories
 dist/
 build/
 out/
 
-# Environment variables
-.env
-.env.local
-.env.*.local
-
-# Electron
+# Electron-compiled binary
 *.electron
 
 # Test artifacts
@@ -43,3 +45,12 @@ src/tests/fixtures/test-steam-root/
 src/tests/fixtures/test-steam-root-nokey/
 src/tests/fixtures/test-output/
 src/examples/test-fallback.vdf
+
+# Lock and temp files for popular package managers
+.npm/
+.pnpm-debug.log
+.yarn/
+
+# Others
+*.orig
+*.bak

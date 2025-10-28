@@ -1,0 +1,27 @@
+"InstallConfigStore"
+{
+	"Software"
+	{
+		"Valve"
+		{
+			"Steam"
+			{
+				"depots"
+				{
+					"201791"
+					{
+						"DecryptionKey"		"07e18a6715cee99f3c872f9fc3f7484243f7bf6c8dcbf57bebd21c3ed7e8e08a"
+					}
+					"413151"
+					{
+						"DecryptionKey"		"ff71699a17787b798d901cb27398556eb69a498b690b4392b2ffedcacc1019ff"
+					}
+					"594653"
+					{
+						"DecryptionKey"		"abc123def456789012345678901234567890abcdef1234567890123456789012"
+					}
+				}
+			}
+		}
+	}
+}

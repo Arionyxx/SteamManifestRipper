@@ -1,36 +1,173 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Electron App</title>
+  <title>Depot Manifest Manager</title>
   <link rel="stylesheet" href="./src/output.css">
 </head>
-<body>
-  <div id="app" class="min-h-screen bg-base-200">
+<body class="bg-base-200">
+  <div id="app" class="min-h-screen">
     <div class="navbar bg-base-100 shadow-lg">
       <div class="flex-1">
-        <a class="btn btn-ghost text-xl">Electron App</a>
+        <a class="btn btn-ghost text-xl">Depot Manifest Manager</a>
+      </div>
+      <div class="flex-none gap-2">
+        <button id="btn-scan" class="btn btn-primary btn-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          Scan Folder
+        </button>
+        <button id="btn-select-files" class="btn btn-secondary btn-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Select Files
+        </button>
+        <button id="btn-save" class="btn btn-success btn-sm" disabled>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+          </svg>
+          Save
+        </button>
       </div>
     </div>
     
-    <div class="container mx-auto p-8">
-      <div class="hero bg-base-100 rounded-lg shadow-xl">
-        <div class="hero-content text-center">
-          <div class="max-w-md">
-            <h1 class="text-5xl font-bold">Hello, Electron!</h1>
-            <p class="py-6">
-              Welcome to your Electron app with Tailwind CSS and DaisyUI.
-            </p>
-            <div class="card bg-base-200 p-4 mt-4">
-              <h2 class="text-lg font-semibold mb-2">Version Information</h2>
-              <div class="text-sm space-y-1">
-                <p>Node: <span id="node-version" class="font-mono">Loading...</span></p>
-                <p>Chrome: <span id="chrome-version" class="font-mono">Loading...</span></p>
-                <p>Electron: <span id="electron-version" class="font-mono">Loading...</span></p>
+    <div class="container mx-auto p-4">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="lg:col-span-2">
+          <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+              <h2 class="card-title">Configuration</h2>
+              
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text">Default APPID</span>
+                  </label>
+                  <input id="input-default-appid" type="text" placeholder="Enter default APPID" class="input input-bordered input-sm" />
+                  <label class="label">
+                    <span class="label-text-alt">Used when APPID cannot be inferred</span>
+                  </label>
+                </div>
+
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text">Output Root Folder</span>
+                  </label>
+                  <div class="join w-full">
+                    <input id="input-output-folder" type="text" placeholder="Select output folder" class="input input-bordered input-sm join-item flex-1" readonly />
+                    <button id="btn-select-output" class="btn btn-sm join-item">Browse</button>
+                  </div>
+                </div>
+
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text">Dump Mode</span>
+                  </label>
+                  <select id="select-dump-mode" class="select select-bordered select-sm">
+                    <option value="full">Full Dump</option>
+                    <option value="partial">Partial Dump</option>
+                    <option value="minimal">Minimal Dump</option>
+                  </select>
+                </div>
+
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text">Filename Pattern</span>
+                  </label>
+                  <input id="input-filename-pattern" type="text" placeholder="{appid}_{depotid}.lua" value="{appid}_{depotid}.lua" class="input input-bordered input-sm" />
+                  <label class="label">
+                    <span class="label-text-alt">Available: {appid}, {depotid}, {manifestid}</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="divider"></div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="form-control">
+                  <label class="label cursor-pointer">
+                    <span class="label-text">Infer APPID from filename</span>
+                    <input id="checkbox-infer" type="checkbox" class="checkbox checkbox-primary" checked />
+                  </label>
+                </div>
+
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text">Output Structure</span>
+                  </label>
+                  <div class="flex gap-4">
+                    <label class="label cursor-pointer gap-2">
+                      <input type="radio" name="structure" value="flat" class="radio radio-sm radio-primary" checked />
+                      <span class="label-text">Flat</span>
+                    </label>
+                    <label class="label cursor-pointer gap-2">
+                      <input type="radio" name="structure" value="nested" class="radio radio-sm radio-primary" />
+                      <span class="label-text">Nested</span>
+                    </label>
+                    <label class="label cursor-pointer gap-2">
+                      <input type="radio" name="structure" value="grouped" class="radio radio-sm radio-primary" />
+                      <span class="label-text">Grouped</span>
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
-            <button class="btn btn-primary mt-6">Get Started</button>
+          </div>
+
+          <div class="card bg-base-100 shadow-xl mt-4">
+            <div class="card-body">
+              <h2 class="card-title">Files</h2>
+              
+              <div class="overflow-x-auto">
+                <table class="table table-xs table-pin-rows">
+                  <thead>
+                    <tr>
+                      <th class="w-8">#</th>
+                      <th>File</th>
+                      <th class="w-24">Manifest ID</th>
+                      <th class="w-24">Depot ID</th>
+                      <th class="w-24">APPID</th>
+                      <th class="w-20">Type</th>
+                      <th class="w-28">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="table-files">
+                    <tr>
+                      <td colspan="7" class="text-center text-base-content/50 py-8">
+                        No files loaded. Use "Scan Folder" or "Select Files" to begin.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-1">
+          <div class="card bg-base-100 shadow-xl sticky top-4">
+            <div class="card-body">
+              <h2 class="card-title">Lua Preview</h2>
+              <div class="form-control">
+                <div class="mockup-code text-xs h-[600px] overflow-auto">
+                  <pre id="preview-content" class="px-4"><code>-- No data to preview
+-- Configure settings and load files to see output</code></pre>
+                </div>
+              </div>
+              <div id="preview-stats" class="stats stats-vertical shadow mt-2">
+                <div class="stat py-2">
+                  <div class="stat-title text-xs">Valid Files</div>
+                  <div class="stat-value text-2xl" id="stat-valid">0</div>
+                </div>
+                <div class="stat py-2">
+                  <div class="stat-title text-xs">Total Files</div>
+                  <div class="stat-value text-2xl" id="stat-total">0</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
